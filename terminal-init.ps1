@@ -1,4 +1,3 @@
-Write-Host "--- Git Helper Initialized ---" -ForegroundColor Cyan
 
 # 1. Thêm file vào .git/info/exclude (ignore local, không ảnh hưởng người khác)
 function g-exclude {
@@ -164,10 +163,16 @@ function g-skip-cache {
 # 15. Thiết lập nhanh cho project mới (Gộp tất cả lệnh ignore/skip)
 function g-init-project {
     Write-Host "--- Initializing Local Git Settings ---" -ForegroundColor Cyan
+    
+    $excludeFile = ".git/info/exclude"
+    if (!(Test-Path $excludeFile)) { New-Item -Path $excludeFile -ItemType File -Force > $null }
 
-    # Nhóm 1: Dùng g-exclude cho các file/thư mục Untracked (chưa từng commit)
+    # 1. Tự động lấy tên thư mục hiện tại để xác định file .slnx chính chủ
+    $projectName = Split-Path -Leaf (Get-Location)
+    $targetSlnx = "$projectName.slnx"
+
+    # 2. Danh sách file ẩn hoàn toàn (Local Exclude)
     $excludes = @(
-        "ch010-marble-blast.slnx",
         "Packages/com.singularitygroup.hotreload/",
         "Assets/FindReference2/",
         "Assets/FindReference2.meta",
@@ -175,27 +180,54 @@ function g-init-project {
         "Assets/FR2_Cache.asset.meta",
         "Assets/vFavorites/",
         "Assets/vFavorites.meta",
-        "*.lscache"
+        "*.lscache",
+        ".vscode/terminal-init.ps1"
     )
-    foreach ($item in $excludes) {
-        g-exclude $item
+
+    # Chỉ thêm .slnx nếu nó thực sự tồn tại và trùng tên Project
+    if (Test-Path ".\$targetSlnx") {
+        $excludes += $targetSlnx
+        Write-Host "Targeted SLNX found: $targetSlnx" -ForegroundColor Magenta
     }
 
-    # Nhóm 2: Dùng g-skip cho các file hệ thống đã có trên Git (Tracked)
-    $skips = @(
+    foreach ($item in $excludes) {
+        if (!(Select-String -Pattern $item -Path $excludeFile -SimpleMatch -Quiet)) {
+            Add-Content $excludeFile $item
+            Write-Host "Added $item to .git/info/exclude" -ForegroundColor Yellow
+        }
+    }
+
+    # 3. Danh sách file cấu hình chỉ ẩn thay đổi (Skip Worktree)
+    # Những file này Git vẫn quản lý nhưng sẽ lờ đi các thay đổi ở máy bạn
+    $filesToSkip = @(
+        ".vscode/settings.json",
         "Packages/packages-lock.json",
         "ProjectSettings/EntitiesClientSettings.asset",
+        "ProjectSettings/ShaderGraphSettings.asset",
         "ProjectSettings/Packages/com.eflatun.scenereference/Settings.json",
         "UserSettings/EditorUserSettings.asset"
     )
-    g-skip $skips
 
-    Write-Host "--- Done! Your Workspace is clean. ---" -ForegroundColor Green
+    foreach ($file in $filesToSkip) {
+        if (Test-Path $file) {
+            git update-index --skip-worktree $file
+            Write-Host "Skipped: $file" -ForegroundColor Green
+        }
+    }
+
+    Write-Host "--- Done! Your Workspace is clean. ---" -ForegroundColor Cyan
 }
 
-Write-Host "Commands:" -ForegroundColor Gray
-Write-Host "g-exclude, g-skip, g-unskip, g-skipped" -ForegroundColor Gray
-Write-Host "g-accept-current, g-accept-incoming" -ForegroundColor Gray
-Write-Host "g-merge-abort, g-reset-hard, g-reset-remote" -ForegroundColor Gray
-Write-Host "g-stash, g-stash-pop, g-stash-list" -ForegroundColor Gray
-Write-Host "g-skip-cache" -ForegroundColor Gray
+# Thay thế đoạn Write-Host ở cuối file của bạn bằng đoạn này:
+$helpMenu = @"
+
+--- Git Helper Initialized ---
+Commands:
+  g-exclude, g-skip, g-unskip, g-skipped
+  g-accept-current, g-accept-incoming
+  g-merge-abort, g-reset-hard, g-reset-remote
+  g-stash, g-stash-pop, g-stash-list
+  g-skip-cache, g-init-project
+------------------------------
+"@
+Write-Host $helpMenu -ForegroundColor Cyan
