@@ -1,4 +1,3 @@
-
 # 1. Thêm file vào .git/info/exclude (ignore local, không ảnh hưởng người khác)
 function g-exclude {
     param([string]$path)
@@ -145,6 +144,7 @@ function g-stash-list {
     Write-Host "Current stashes:" -ForegroundColor Cyan
     git stash list
 }
+
 # 14. Tự động skip tất cả file .lscache đang bị modified
 function g-skip-cache {
     $cacheFiles = git ls-files -m | Where-Object { $_ -like "*.lscache" }
@@ -181,7 +181,8 @@ function g-init-project {
         "Assets/vFavorites/",
         "Assets/vFavorites.meta",
         "*.lscache",
-        ".vscode/terminal-init.ps1"
+        ".vscode/terminal-init.ps1",
+        "UIElementsSchema/"
     )
 
     # Chỉ thêm .slnx nếu nó thực sự tồn tại và trùng tên Project
@@ -198,14 +199,12 @@ function g-init-project {
     }
 
     # 3. Danh sách file cấu hình chỉ ẩn thay đổi (Skip Worktree)
-    # Những file này Git vẫn quản lý nhưng sẽ lờ đi các thay đổi ở máy bạn
     $filesToSkip = @(
         ".vscode/settings.json",
         "Packages/packages-lock.json",
         "ProjectSettings/EntitiesClientSettings.asset",
         "ProjectSettings/ShaderGraphSettings.asset",
-        "ProjectSettings/Packages/com.eflatun.scenereference/Settings.json",
-        "UserSettings/EditorUserSettings.asset"
+        "ProjectSettings/Packages/com.eflatun.scenereference/Settings.json"
     )
 
     foreach ($file in $filesToSkip) {
@@ -218,9 +217,41 @@ function g-init-project {
     Write-Host "--- Done! Your Workspace is clean. ---" -ForegroundColor Cyan
 }
 
-# Thay thế đoạn Write-Host ở cuối file của bạn bằng đoạn này:
-$helpMenu = @"
+# 16. assume 
+function g-assume {
+    param($file)
+    git update-index --assume-unchanged $file
+    Write-Host "Assumed unchanged: $file" -ForegroundColor Cyan
+}
 
+# 17. unassume
+function g-unassume {
+    param($file)
+    git update-index --no-assume-unchanged $file
+    Write-Host "No longer assuming unchanged: $file" -ForegroundColor Yellow
+}
+
+# 18. Untrack Settings
+function g-untrack-settings {
+    Write-Host "--- Untracking Settings ---" -ForegroundColor Cyan
+    
+    $targets = @(
+        "UserSettings/EditorUserSettings.asset",
+        "UserSettings/Layouts/default-6000.dwlt"
+    )
+
+    foreach ($file in $targets) {
+        if (Test-Path $file) {
+            git rm --cached $file 2>$null
+            Write-Host "untrack: $file" -ForegroundColor Yellow
+        }
+    }
+
+    g-exclude "UserSettings/"
+    Write-Host "--- Done! ---" -ForegroundColor Green   
+}
+
+$helpMenu = @'
 --- Git Helper Initialized ---
 Commands:
   g-exclude, g-skip, g-unskip, g-skipped
@@ -228,6 +259,9 @@ Commands:
   g-merge-abort, g-reset-hard, g-reset-remote
   g-stash, g-stash-pop, g-stash-list
   g-skip-cache, g-init-project
+  g-assume, g-unassume
+  g-untrack-settings
 ------------------------------
-"@
+'@
+
 Write-Host $helpMenu -ForegroundColor Cyan
